@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Groq } from 'groq';
+import { Groq } from 'groq-sdk';
 import { getData } from '@/lib/db';
 
 const client = new Groq({
