@@ -58,6 +58,11 @@ export default function Dashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
+
   const stats = {
     total: devices.length,
     pending: devices.filter(d => d.status === "PENDING").length,
@@ -75,6 +80,23 @@ export default function Dashboard() {
           <a className="nav-item active">Devices</a>
           <a className="nav-item">Settings</a>
           <a className="nav-item">API Logs</a>
+          <div style={{ flex: 1 }}></div>
+          <button
+            onClick={handleLogout}
+            className="nav-item logout-link"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ff4d4d',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              padding: '12px 20px',
+              marginTop: 'auto'
+            }}
+          >
+            Logout
+          </button>
         </nav>
       </aside>
 
