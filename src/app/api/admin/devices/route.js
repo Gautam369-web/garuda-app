@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getData, saveData } from '@/lib/db';
+import { getDevices, upsertDevice, deleteDevice } from '@/lib/db';
 
 // GET all devices
 export async function GET() {
     try {
-        const data = getData();
-        return NextResponse.json(data.devices);
+        const devices = await getDevices();
+        return NextResponse.json(devices);
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -15,18 +15,18 @@ export async function GET() {
 export async function PATCH(req) {
     try {
         const { hwid, status, validUntil } = await req.json();
-        const data = getData();
-        const index = data.devices.findIndex(d => d.hwid === hwid);
+        const devices = await getDevices();
+        const device = devices.find(d => d.hwid === hwid);
 
-        if (index === -1) {
+        if (!device) {
             return NextResponse.json({ error: "Device not found" }, { status: 404 });
         }
 
-        if (status) data.devices[index].status = status;
-        if (validUntil !== undefined) data.devices[index].validUntil = validUntil;
+        if (status) device.status = status;
+        if (validUntil !== undefined) device.validUntil = validUntil;
 
-        saveData(data);
-        return NextResponse.json(data.devices[index]);
+        await upsertDevice(device);
+        return NextResponse.json(device);
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -36,9 +36,7 @@ export async function PATCH(req) {
 export async function DELETE(req) {
     try {
         const { hwid } = await req.json();
-        const data = getData();
-        data.devices = data.devices.filter(d => d.hwid !== hwid);
-        saveData(data);
+        await deleteDevice(hwid);
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

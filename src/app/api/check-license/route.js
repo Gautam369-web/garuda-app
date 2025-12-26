@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getData, saveData } from '@/lib/db';
+import { getDevices, upsertDevice } from '@/lib/db';
 
 export async function POST(req) {
     try {
@@ -9,8 +9,8 @@ export async function POST(req) {
             return NextResponse.json({ error: "Missing HWID" }, { status: 400 });
         }
 
-        const data = getData();
-        let device = data.devices.find(d => d.hwid === hwid);
+        const devices = await getDevices();
+        let device = devices.find(d => d.hwid === hwid);
 
         if (!device) {
             // First time registration
@@ -24,15 +24,14 @@ export async function POST(req) {
                 lastCheckIn: new Date().toISOString(),
                 registeredAt: new Date().toISOString()
             };
-            data.devices.push(device);
-            saveData(data);
         } else {
-            // Existing device: update last check-in
+            // Existing device: update check-in
             device.lastCheckIn = new Date().toISOString();
             if (pcName) device.pcName = pcName;
             if (username) device.username = username;
-            saveData(data);
         }
+
+        await upsertDevice(device);
 
         return NextResponse.json({
             status: device.status,
@@ -41,6 +40,7 @@ export async function POST(req) {
         });
 
     } catch (error) {
+        console.error("Check License Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
