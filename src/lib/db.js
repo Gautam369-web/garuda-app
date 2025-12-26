@@ -75,6 +75,11 @@ export async function getDevices() {
 
 export async function upsertDevice(device) {
     try {
+        // SECURITY: Sanitize hwid input to prevent NoSQL injection
+        if (typeof device.hwid !== 'string') {
+            throw new Error("Invalid HWID type");
+        }
+
         const db = await getDb();
         if (db) {
             const { hwid, ...updateData } = device;
@@ -101,11 +106,21 @@ export async function upsertDevice(device) {
 }
 
 export async function deleteDevice(hwid) {
-    const db = await getDb();
-    if (db) {
-        await db.collection("devices").deleteOne({ hwid });
-        return;
+    try {
+        // SECURITY: Sanitize hwid input
+        if (typeof hwid !== 'string') {
+            throw new Error("Invalid HWID type");
+        }
+
+        const db = await getDb();
+        if (db) {
+            await db.collection("devices").deleteOne({ hwid });
+            return;
+        }
+    } catch (err) {
+        console.error("deleteDevice MongoDB Error:", err);
     }
+
     const data = getLocalData();
     data.devices = data.devices.filter(d => d.hwid !== hwid);
     saveLocalData(data);

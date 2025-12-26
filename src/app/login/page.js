@@ -52,7 +52,7 @@ export default function LoginPage() {
             <input
               id="email"
               type="email"
-              placeholder="gkk.devx@gmail.com"
+              placeholder="xxx@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -79,7 +79,7 @@ export default function LoginPage() {
         </form>
 
         <div className={styles.loginFooter}>
-          © 2025 NeoBridge Garuda • Secure Environment
+          © 2025 Rossie • Secure Environment
         </div>
       </div>
     </div>
