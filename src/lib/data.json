@@ -1,3 +1,14 @@
 {
-    "devices": []
+  "devices": [
+    {
+      "hwid": "test-hwid-123",
+      "pcName": "TestPC",
+      "username": "TestUser",
+      "licenseKey": "None",
+      "status": "APPROVED",
+      "validUntil": null,
+      "lastCheckIn": "2025-12-26T22:01:29.282Z",
+      "registeredAt": "2025-12-26T22:01:29.282Z"
+    }
+  ]
 }

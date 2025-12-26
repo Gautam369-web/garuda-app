@@ -5,9 +5,11 @@ import { getDevices, upsertDevice, deleteDevice } from '@/lib/db';
 export async function GET() {
     try {
         const devices = await getDevices();
+        if (!devices) return NextResponse.json([], { status: 200 }); // Safety
         return NextResponse.json(devices);
     } catch (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("API GET Devices Error:", error);
+        return NextResponse.json({ error: "Storage connection failed: " + error.message }, { status: 500 });
     }
 }
 

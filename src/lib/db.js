@@ -1,72 +1,95 @@
-import { sql } from '@vercel/postgres';
+import { MongoClient } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 
 const DB_PATH = path.join(process.cwd(), 'src/lib/data.json');
-const IS_PROD = process.env.NODE_ENV === 'production';
+const MONGODB_URI = process.env.STORAGE_URL || process.env.MONGODB_URI;
+const MONGODB_DB = process.env.MONGODB_DB || "garuda_db";
 
-// Fallback for local development
-function getLocalData() {
-    if (!fs.existsSync(DB_PATH)) {
-        fs.writeFileSync(DB_PATH, JSON.stringify({ devices: [] }, null, 2));
+let client;
+let clientPromise;
+
+if (MONGODB_URI) {
+    if (process.env.NODE_ENV === 'development') {
+        // In development mode, use a global variable so that the value
+        // is preserved across module reloads caused by HMR (Hot Module Replacement).
+        if (!global._mongoClientPromise) {
+            client = new MongoClient(MONGODB_URI);
+            global._mongoClientPromise = client.connect();
+        }
+        clientPromise = global._mongoClientPromise;
+    } else {
+        // In production mode, it's best to not use a global variable.
+        client = new MongoClient(MONGODB_URI);
+        clientPromise = client.connect();
     }
-    return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+}
+
+async function getDb() {
+    if (!MONGODB_URI) return null;
+    const client = await clientPromise;
+    return client.db(MONGODB_DB);
+}
+
+// Fallback for local development WITHOUT MongoDB
+function getLocalData() {
+    try {
+        if (!fs.existsSync(DB_PATH)) {
+            // Only try to write if we are NOT on Vercel (or in dev)
+            if (process.env.NODE_ENV === 'development' && !process.env.VERCEL) {
+                fs.writeFileSync(DB_PATH, JSON.stringify({ devices: [] }, null, 2));
+            }
+            return { devices: [] };
+        }
+        return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+    } catch (err) {
+        console.error("Local Data Error:", err);
+        return { devices: [] };
+    }
 }
 
 function saveLocalData(data) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+    try {
+        if (!process.env.VERCEL) {
+            fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+        } else {
+            console.warn("Attempted to save local data on Vercel - ignored.");
+        }
+    } catch (err) {
+        console.error("Save Local Data Error:", err);
+    }
 }
 
-// Unified Data Fetcher
 export async function getDevices() {
-    if (IS_PROD) {
-        try {
-            const { rows } = await sql`SELECT * FROM devices ORDER BY registered_at DESC`;
-            // Map names to match our expected JS object format
-            return rows.map(r => ({
-                hwid: r.hwid,
-                pcName: r.pc_name,
-                username: r.username,
-                licenseKey: r.license_key,
-                status: r.status,
-                validUntil: r.valid_until,
-                lastCheckIn: r.last_check_in,
-                registeredAt: r.registered_at
-            }));
-        } catch (e) {
-            console.error("Postgres Error, falling back to local init", e);
-            // Try to create table if it doesn't exist
-            await sql`CREATE TABLE IF NOT EXISTS devices (
-        hwid TEXT PRIMARY KEY,
-        pc_name TEXT,
-        username TEXT,
-        license_key TEXT,
-        status TEXT,
-        valid_until TEXT,
-        last_check_in TEXT,
-        registered_at TEXT
-      )`;
-            return [];
+    try {
+        const db = await getDb();
+        if (db) {
+            const devices = await db.collection("devices").find({}).sort({ registeredAt: -1 }).toArray();
+            return devices;
         }
+    } catch (err) {
+        console.error("getDevices MongoDB Error:", err);
     }
-    return getLocalData().devices;
+    return getLocalData().devices || [];
 }
 
 export async function upsertDevice(device) {
-    if (IS_PROD) {
-        await sql`
-      INSERT INTO devices (hwid, pc_name, username, license_key, status, valid_until, last_check_in, registered_at)
-      VALUES (${device.hwid}, ${device.pcName}, ${device.username}, ${device.licenseKey}, ${device.status}, ${device.validUntil}, ${device.lastCheckIn}, ${device.registeredAt})
-      ON CONFLICT (hwid) 
-      DO UPDATE SET 
-        last_check_in = ${device.lastCheckIn},
-        pc_name = ${device.pcName},
-        username = ${device.username},
-        status = EXCLUDED.status,
-        valid_until = EXCLUDED.valid_until
-    `;
-        return;
+    try {
+        const db = await getDb();
+        if (db) {
+            const { hwid, ...updateData } = device;
+            delete updateData._id;
+            await db.collection("devices").updateOne(
+                { hwid: hwid },
+                { $set: updateData },
+                { upsert: true }
+            );
+            return;
+        }
+    } catch (err) {
+        console.error("upsertDevice MongoDB Error:", err);
     }
+
     const data = getLocalData();
     const index = data.devices.findIndex(d => d.hwid === device.hwid);
     if (index === -1) {
@@ -78,8 +101,9 @@ export async function upsertDevice(device) {
 }
 
 export async function deleteDevice(hwid) {
-    if (IS_PROD) {
-        await sql`DELETE FROM devices WHERE hwid = ${hwid}`;
+    const db = await getDb();
+    if (db) {
+        await db.collection("devices").deleteOne({ hwid });
         return;
     }
     const data = getLocalData();

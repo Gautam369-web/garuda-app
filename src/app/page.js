@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 export default function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDevices();
@@ -14,10 +15,19 @@ export default function Dashboard() {
     try {
       const resp = await fetch("/api/admin/devices");
       const data = await resp.json();
-      setDevices(data);
+
+      if (Array.isArray(data)) {
+        setDevices(data);
+      } else if (data.error) {
+        setError(data.error);
+      } else {
+        setError("Invalid response format from server.");
+      }
       setLoading(false);
     } catch (err) {
       console.error("Failed to fetch devices", err);
+      setError("Network error: Could not reach the server.");
+      setLoading(false);
     }
   };
 
@@ -91,6 +101,20 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {error && (
+          <div className="error-banner" style={{
+            background: 'rgba(255, 0, 0, 0.1)',
+            border: '1px solid #ff4d4d',
+            color: '#ff4d4d',
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            fontSize: '0.9rem'
+          }}>
+            <strong>⚠️ API Error:</strong> {error}
+          </div>
+        )}
+
         {/* Device Table */}
         <div className="device-table-container">
           <table>
@@ -106,7 +130,7 @@ export default function Dashboard() {
             <tbody>
               {loading ? (
                 <tr><td colSpan="5" style={{ textAlign: 'center' }}>Loading devices...</td></tr>
-              ) : devices.length === 0 ? (
+              ) : !Array.isArray(devices) || devices.length === 0 ? (
                 <tr><td colSpan="5" style={{ textAlign: 'center' }}>No device requests found.</td></tr>
               ) : devices.map(device => (
                 <tr key={device.hwid}>
