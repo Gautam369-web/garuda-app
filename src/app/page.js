@@ -62,8 +62,11 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    // Basic logout simulation since we haven't implemented full auth yet
-    // but the user has a logout link in the UI
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      console.error("Logout API failed, redirecting anyway", e);
+    }
     router.push("/login");
   };
 
